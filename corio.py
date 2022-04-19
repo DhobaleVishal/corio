@@ -41,7 +41,6 @@ from config import S3_CFG, CORIO_CFG, CLUSTER_CFG
 from src.commons.logger import StreamToLogger
 from src.commons.yaml_parser import test_parser
 from src.commons.constants import DATA_DIR_PATH
-from src.commons.constants import ROOT
 from src.commons.constants import MOUNT_DIR
 from src.commons.constants import DT_STRING
 from src.commons.support_bundle import support_bundle_process
@@ -58,7 +57,7 @@ from src.commons.workload_mapping import function_mapping
 from src.commons.scheduler import schedule_test_plan
 from src.commons.scheduler import terminate_processes
 
-LOGGER = logging.getLogger(ROOT)
+LOGGER = logging.getLogger()
 
 
 def initialize_loghandler(opt):
