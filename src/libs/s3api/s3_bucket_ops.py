@@ -21,12 +21,15 @@
 
 """Python Library to perform bucket operations using aiobotocore module."""
 
+from config import S3_CFG
+from src.commons.utils.corio_utils import retries
 from src.libs.s3api.s3_restapi import S3RestApi
 
 
 class S3Bucket(S3RestApi):
     """Class for bucket operations."""
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def create_bucket(self, bucket_name: str) -> dict:
         """
         Creating Bucket.
@@ -40,6 +43,7 @@ class S3Bucket(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def list_buckets(self) -> list:
         """
         Listing all the buckets.
@@ -54,6 +58,7 @@ class S3Bucket(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def head_bucket(self, bucket_name: str) -> dict:
         """
         To determine if a bucket exists and have a permission to access it.
@@ -67,6 +72,7 @@ class S3Bucket(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def get_bucket_location(self, bucket_name: str) -> dict:
         """
         Getting Bucket Location.
@@ -81,6 +87,7 @@ class S3Bucket(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def delete_bucket(self, bucket_name: str, force: bool = False) -> dict:
         """
         Deleting the empty bucket or deleting the buckets along with objects stored in it.

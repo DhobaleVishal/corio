@@ -26,6 +26,7 @@ import logging
 import math
 import os
 import shutil
+import time
 from base64 import b64encode
 from datetime import datetime
 from subprocess import Popen, PIPE, CalledProcessError
@@ -34,12 +35,13 @@ from typing import Union
 import paramiko
 import psutil as ps
 
-from config import CORIO_CFG
+from config import CORIO_CFG, S3_CFG
 from src.commons.commands import CMD_MOUNT
 from src.commons.constants import CMN_LOG_DIR, MOUNT_DIR
 from src.commons.constants import DATA_DIR_PATH, LOG_DIR, REPORTS_DIR
 from src.commons.constants import KB, KIB
 from src.commons.constants import ROOT
+from src.commons.exception import TooManyTriesException
 
 LOGGER = logging.getLogger(ROOT)
 
@@ -281,6 +283,23 @@ def store_logs_to_nfs_local_server():
     # Cleaning up TestData.
     if os.path.exists(DATA_DIR_PATH):
         shutil.rmtree(DATA_DIR_PATH)
+
+
+def retries(times):
+    """Retry/polling in case failure."""
+    def func_wrapper(fun):
+        async def wrapper(*args, **kwargs):
+            for cnt in range(1, times + 1):
+                # Two seconds delay between each retry.
+                time.sleep(S3_CFG.explicitly_retry_wait)
+                try:
+                    return await fun(*args, **kwargs)
+                except Exception as err:
+                    LOGGER.error(err, exc_info=True)
+                    if cnt == times:
+                        raise TooManyTriesException() from err
+        return wrapper
+    return func_wrapper
 
 
 class RemoteHost:

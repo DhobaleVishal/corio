@@ -21,12 +21,15 @@
 
 """Python Library to perform multipart operations using aiobotocore module."""
 
+from config import S3_CFG
+from src.commons.utils.corio_utils import retries
 from src.libs.s3api.s3_restapi import S3RestApi
 
 
 class S3MultiParts(S3RestApi):
     """Class for Multipart operations."""
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def create_multipart_upload(self, bucket_name: str, obj_name: str) -> dict:
         """
         Request to initiate a multipart upload.
@@ -42,6 +45,7 @@ class S3MultiParts(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def upload_part(self, body: bytes, bucket_name: str, object_name: str, **kwargs) -> dict:
         """
         Upload parts of a specific multipart upload.
@@ -62,6 +66,7 @@ class S3MultiParts(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def list_parts(self, mpu_id: str, bucket_name: str, object_name: str) -> list:
         """
         list parts of a specific multipart upload.
@@ -82,6 +87,7 @@ class S3MultiParts(S3RestApi):
 
         return parts
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def complete_multipart_upload(self, mpu_id: str, parts: list, bucket: str,
                                         object_name: str) -> dict:
         """
@@ -104,6 +110,7 @@ class S3MultiParts(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def list_multipart_uploads(self, bucket_name: str) -> list:
         """
         List all initiated multipart uploads.
@@ -121,6 +128,7 @@ class S3MultiParts(S3RestApi):
 
         return uploads
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def abort_multipart_upload(self, bucket_name: str, object_name: str,
                                      upload_id: str) -> dict:
         """
@@ -138,6 +146,7 @@ class S3MultiParts(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def upload_part_copy(self, copy_source: str, bucket_name: str,
                                object_name: str, **kwargs) -> dict:
         """

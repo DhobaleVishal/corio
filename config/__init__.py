@@ -71,6 +71,8 @@ S3_CFG["secret_key"] = SECRT_KEY if SECRT_KEY else LOCAL_SEC_KEY
 S3_CFG["use_ssl"] = USE_SSL
 S3_CFG["endpoint"] = S3_ENDPOINT
 S3_CFG["s3api_retry"] = 5
+S3_CFG["explicitly_retry"] = 5
+S3_CFG["explicitly_retry_wait"] = 2
 
 # Munched configs. These can be used by dot "." operator.
 S3_CFG = munch.munchify(S3_CFG)

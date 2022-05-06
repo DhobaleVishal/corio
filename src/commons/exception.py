@@ -33,3 +33,7 @@ class HealthCheckError(Exception):
     def __str__(self):
         """Print error message."""
         return self.message
+
+
+class TooManyTriesException(BaseException):
+    pass

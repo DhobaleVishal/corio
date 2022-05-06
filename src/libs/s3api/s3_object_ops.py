@@ -21,15 +21,19 @@
 
 """Python Library to perform object operations using aiobotocore module."""
 
-import os
 import hashlib
+import os
 from typing import List
+
+from config import S3_CFG
+from src.commons.utils.corio_utils import retries
 from src.libs.s3api.s3_restapi import S3RestApi
 
 
 class S3Object(S3RestApi):
     """Class for object operations."""
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def upload_object(self, bucket: str, key: str, **kwargs) -> dict:
         """
         Uploading object to the Bucket, file_path or body is compulsory.
@@ -51,6 +55,7 @@ class S3Object(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def list_objects(self, bucket: str) -> list:
         """
         Listing Objects.
@@ -66,6 +71,7 @@ class S3Object(S3RestApi):
 
         return objects
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def delete_object(self, bucket: str, key: str) -> dict:
         """
         Deleting object.
@@ -80,6 +86,7 @@ class S3Object(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def delete_objects(self, bucket: str, keys: List[str]) -> dict:
         """
         Deleting object.
@@ -96,6 +103,7 @@ class S3Object(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def head_object(self, bucket: str, key: str) -> dict:
         """
         Retrieve metadata from an object without returning the object itself.
@@ -110,6 +118,7 @@ class S3Object(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def get_object(self, bucket: str, key: str, ranges: str = None) -> dict:
         """
         Getting object or byte range of the object.
@@ -128,6 +137,7 @@ class S3Object(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def download_object(self, bucket: str, key: str, file_path: str,
                               chunk_size: int = 1024) -> dict:
         """
@@ -155,6 +165,7 @@ class S3Object(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def copy_object(self, src_bucket: str, src_key: str, des_bucket: str, des_key: str,
                           **kwargs) -> dict:
         """
@@ -175,6 +186,7 @@ class S3Object(S3RestApi):
 
         return response
 
+    @retries(times=S3_CFG.explicitly_retry)
     async def get_s3object_checksum(self, bucket: str, key: str, chunk_size: int = 1024,
                                     ranges: str = None) -> str:
         """
