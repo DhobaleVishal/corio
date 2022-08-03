@@ -25,11 +25,12 @@ import logging
 import os
 import smtplib
 import threading
-import time
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formatdate, COMMASPACE, make_msgid
+
+import time
 
 from config import CORIO_CFG
 from src.commons import commands
@@ -65,26 +66,29 @@ class Mail:
             server.sendmail(self.sender, self.receiver.split(','), message.as_string())
 
 
+# pylint: disable=too-many-instance-attributes
 class MailNotification(threading.Thread):
     """This class contains common utility methods for Mail Notification."""
 
-    def __init__(self, sender, receiver, tp_id, report_path):
+    def __init__(self, corio_start_time, tp_id, sender=None, receiver=None):
         """
         Init method:
         :param sender: sender of mail
         :param receiver: receiver of mail
         :param tp_id : Test Plan ID to be sent in subject.
-        :param report_path: Report file path.
         """
         super().__init__()
         self.event_fail = threading.Event()
+        self.event_pass = threading.Event()
+        self.report_path = get_report_file_path(corio_start_time)
+        self.sender = sender if sender else os.getenv("RECEIVER_MAIL_ID")
+        self.receiver = receiver if receiver else os.getenv("SENDER_MAIL_ID")
+        self.alert = bool(self.sender and self.receiver)
         self.mail_obj = Mail(sender=sender, receiver=receiver)
-        self.sender = sender
-        self.receiver = receiver
-        self.tp_id = tp_id
         self.health_obj = get_logical_node()
-        self.report_path = report_path
         self.message_id = None
+        self.mail_notify = None
+        self.tp_id = tp_id
 
     def prepare_email(self, execution_status) -> MIMEMultipart:
         """
@@ -135,29 +139,41 @@ class MailNotification(threading.Thread):
 
     def run(self):
         """Send Mail notification periodically."""
-        while not self.event_fail.is_set():
+        message = None
+        while not (self.event_fail.is_set() and self.event_pass.is_set()):
             message = self.prepare_email(execution_status="in progress")
             self.mail_obj.send_mail(message)
             current_time = time.time()
             while time.time() < current_time + CORIO_CFG.email_interval_mins * 60:
-                if self.event_fail.is_set():
+                if self.event_fail.is_set() or self.event_pass.is_set():
                     break
                 time.sleep(60)
-        message = self.prepare_email(execution_status="failed")
+        if self.event_pass.is_set():
+            message = self.prepare_email(execution_status="passed")
+        if self.event_fail.is_set():
+            message = self.prepare_email(execution_status="failed")
         self.mail_obj.send_mail(message)
 
 
-def send_mail_notification(sender_email, receiver_email, tp_id, corio_start_time):
-    """
-    Send mail notification
-    :param sender_email: Sender Mail ID
-    :param receiver_email: Receiver Mail ID
-    :param tp_id: Test Plan ID
-    :param corio_start_time:
-    :return MailNotification Process.
-    """
-    report_path = get_report_file_path(corio_start_time)
-    mail_notify = MailNotification(sender=sender_email, receiver=receiver_email, tp_id=tp_id,
-                                   report_path=report_path)
-    mail_notify.start()
-    return mail_notify
+class SendMailNotification(MailNotification):
+    """Send mail notification for execution."""
+
+    def __int__(self, *args, **kwargs) -> None:
+        """Init method."""
+        super().__init__(*args, **kwargs)
+
+    def start_mail_notification(self):
+        """Start the mail notification."""
+        self.mail_notify = MailNotification(
+            self.sender, self.receiver, self.tp_id, self.report_path)
+        self.mail_notify.start()
+
+    def send_failure_notification(self):
+        """Send failure notification."""
+        self.mail_notify.event_fail.set()
+        self.mail_notify.join()
+
+    def send_passed_notification(self):
+        """Send passed notification."""
+        self.mail_notify.event_pass.set()
+        self.mail_notify.join()

@@ -26,7 +26,6 @@ import logging
 import multiprocessing
 import os
 import random
-import time
 from collections import Counter
 from datetime import datetime
 from distutils.util import strtobool
@@ -34,6 +33,7 @@ from pprint import pformat
 
 import munch
 import schedule
+import time
 
 from config import S3_CFG, CORIO_CFG
 from src.commons import constants as const
@@ -49,7 +49,7 @@ from src.commons.scheduler import schedule_test_status_update
 from src.commons.scheduler import terminate_update_test_status
 from src.commons.support_bundle import collect_upload_rotate_support_bundles
 from src.commons.support_bundle import support_bundle_process
-from src.commons.utils.alerts import send_mail_notification
+from src.commons.utils.alerts import SendMailNotification
 from src.commons.utils.corio_utils import cpu_memory_details
 from src.commons.utils.corio_utils import log_cleanup
 from src.commons.utils.corio_utils import run_local_cmd
@@ -221,8 +221,8 @@ def schedule_execution_plan(parsed_input: dict, options: munch.Munch, return_dic
         master_config = yaml_parser("workload/master_config.yaml")
         LOGGER.info("Master config data \n %s", master_config)
         processes["degraded_mode"] = multiprocessing.Process(target=activate_degraded_mode_parallel,
-                                                            name="degraded_mode",
-                                                            args=(return_dict, master_config,))
+                                                             name="degraded_mode",
+                                                             args=(return_dict, master_config,))
     return processes
 
 
@@ -258,11 +258,10 @@ def monitor_processes(processes: dict, return_dict) -> str or None:
                     LOGGER.warning("Process with PID for Cluster Degraded Mode "
                                    "Transition %s stopped.", process.pid)
                     raise DegradedModeError(f"Process with PID {process.pid} stopped.")
-                else:
-                    LOGGER.info("Process with PID for Cluster Degraded Mode"
-                                " Transition %s completed.", process.pid)
-                    skip_process.append(tp_key)
-                    continue
+                LOGGER.info("Process with PID for Cluster Degraded Mode Transition %s "
+                            "completed.", process.pid)
+                skip_process.append(tp_key)
+                continue
             LOGGER.critical("Process with PID %s Name %s exited. Stopping other Process.",
                             process.pid, process.name)
             return tp_key
@@ -321,10 +320,9 @@ def main(options):
     sched = schedule_test_status_update(parsed_input, corio_start_time,
                                         CORIO_CFG.report_interval_mins,
                                         sequential_run=options.sequential_run)
-    receivers = os.getenv("RECEIVER_MAIL_ID")
-    sender = os.getenv("SENDER_MAIL_ID")
-    if receivers and sender:
-        mail_notify = send_mail_notification(sender, receivers, options.test_plan, corio_start_time)
+    mail_obj = SendMailNotification(corio_start_time, options.test_plan)
+    if mail_obj.alert:
+        mail_obj.start_mail_notification()
     terminated_tp, test_ids = None, []
     try:
         if options.degraded_mode:
@@ -340,28 +338,30 @@ def main(options):
             terminated_tp = monitor_processes(processes, return_dict)
             if terminated_tp:
                 test_ids = get_test_ids_from_terminated_workload(parsed_input, terminated_tp)
-                if receivers and sender:
-                    mail_notify.event_fail.set()
-                    mail_notify.join()
+                if mail_obj.alert:
+                    mail_obj.send_failure_notification()
                 break
             if tuple(processes.keys()) in const.terminate_process_list:
                 break
-    except (Exception, KeyboardInterrupt, MemoryError, HealthCheckError, DegradedModeError) as error:
-        LOGGER.exception(error)
-        terminated_tp = type(error).__name__
+    except (Exception, KeyboardInterrupt, MemoryError, HealthCheckError, DegradedModeError) as err:
+        LOGGER.exception(err)
+        terminated_tp = type(err).__name__
     finally:
         terminate_processes(processes)
-        terminate_update_test_status(parsed_input, corio_start_time, terminated_tp, test_ids,
-                                     sched, sequential_run=options.sequential_run)
+        terminate_update_test_status(
+            parsed_input, corio_start_time, terminated_tp, test_ids,
+            sched, sequential_run=options.sequential_run)
         if jira_obj:
-            jira_obj.update_jira_status(corio_start_time=corio_start_time,
-                                        tests_details=tests_to_execute, aborted=True,
-                                        terminated_tests=test_ids)
+            jira_obj.update_jira_status(
+                corio_start_time=corio_start_time, tests_details=tests_to_execute, aborted=True,
+                terminated_tests=test_ids)
         if options.support_bundle:
             collect_upload_rotate_support_bundles(const.CMN_LOG_DIR)
-        if receivers and sender:
-            mail_notify.event_fail.set()
-            mail_notify.join()
+        if mail_obj.alert:
+            if terminated_tp or test_ids:
+                mail_obj.send_failure_notification()
+            else:
+                mail_obj.send_passed_notification()
         collect_resource_utilisation(action="stop")
         store_logs_to_nfs_local_server()
 
