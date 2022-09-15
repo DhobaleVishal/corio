@@ -26,6 +26,7 @@ import shutil
 
 from src.commons import commands as cmd
 from src.commons import constants as const
+from src.commons.utils import utility
 from src.commons.utils.k8s import ClusterServices
 
 LOGGER = logging.getLogger(const.ROOT)
@@ -47,15 +48,15 @@ def collect_resource_utilisation(action: str):
 
 def start_client_resource_utilisation():
     """Start resource utilization on client."""
-    resp = corio_utils.install_package(const.NMON)
+    resp = utility.install_package(const.NMON)
     if resp[0]:
-        resp = corio_utils.run_local_cmd(cmd.CMD_RUN_NMON)
+        resp = utility.run_local_cmd(cmd.CMD_RUN_NMON)
     LOGGER.info(resp)
 
 
 def stop_store_client_resource_utilization():
     """Stop resource utilization from client and copy to NFS/LOCAL server."""
-    resp = corio_utils.run_local_cmd(cmd.CMD_KILL_NMON)
+    resp = utility.run_local_cmd(cmd.CMD_KILL_NMON)
     LOGGER.debug(resp)
     stat_fpath = sorted(glob.glob(os.getcwd() + "/*.nmon"), key=os.path.getctime, reverse=True)[-1]
     LOGGER.info(stat_fpath)
@@ -65,10 +66,10 @@ def stop_store_client_resource_utilization():
     shutil.move(stat_fpath, os.path.join(dpath, os.path.basename(stat_fpath)))
     if os.path.exists(stat_fpath):
         os.remove(stat_fpath)
-    # corio_utils.remove_package(const.NMON)
+    # utility.remove_package(const.NMON)
     # collect journalctl logs from client.
     journalctl_filepath = os.path.join("/root", "client_journalctl.log")
-    resp = corio_utils.run_local_cmd(cmd.CMD_JOURNALCTL.format(journalctl_filepath))
+    resp = utility.run_local_cmd(cmd.CMD_JOURNALCTL.format(journalctl_filepath))
     if resp[0]:
         shutil.move(
             journalctl_filepath,
@@ -76,7 +77,7 @@ def stop_store_client_resource_utilization():
         )
     # collect dmesg logs from client.
     dmesg_filepath = os.path.join("/root", "client_dmesg.log")
-    resp = corio_utils.run_local_cmd(cmd.CMD_JOURNALCTL.format(dmesg_filepath))
+    resp = utility.run_local_cmd(cmd.CMD_JOURNALCTL.format(dmesg_filepath))
     if resp[0]:
         shutil.move(dmesg_filepath, os.path.join(dpath, os.path.basename(dmesg_filepath)))
 
@@ -95,7 +96,7 @@ def start_server_resource_utilization() -> None:
 def get_server_details() -> tuple:
     """Get K8s based Server details."""
     cluster_nodes = []
-    host, user, passwd = corio_utils.get_master_details()
+    host, user, passwd = utility.get_master_details()
     if not host:
         LOGGER.critical("Will not able to collect system stats for cluster as detail is missing.")
         return None, None, cluster_nodes
