@@ -27,7 +27,6 @@ from scripts.s3.s3api import (
     bucket_operations_negative,
     copy_object_operations,
     mix_object_crud_operations,
-    multipart_abort,
     multipart_operations,
     object_operations,
     object_operations_negative,
@@ -129,7 +128,7 @@ SCRIPT_MAPPING = {
         "execute_object_read_negative_workload",
     ],
     "type_5_object_multipart_negative": [
-        multipart_abort.TestType5ObjectRRNegative,
-        "execute_multipart_abort_workload",
+        multipart_operations.TestMultiParts,
+        "execute_multipart_negative_workload",
     ],
 }

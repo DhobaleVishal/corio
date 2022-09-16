@@ -26,6 +26,8 @@ import random
 from datetime import datetime, timedelta
 from time import perf_counter_ns
 
+from botocore.exceptions import ClientError
+
 from src.commons.constants import MIN_DURATION
 from src.commons.utils import utility
 from src.libs.s3api import S3Api
@@ -75,11 +77,9 @@ class TestMultiParts(S3Api):
         self.session_id = kwargs.get("session")
         self.iteration = 1
         self.test_id = test_id.lower()
-        if kwargs.get("duration"):
-            self.finish_time = datetime.now() + kwargs.get("duration")
-        else:
-            # If duration not given then test will run for 100 Day
-            self.finish_time = datetime.now() + timedelta(hours=int(100 * 24))
+        self.kwargs = kwargs
+        # Minimum runtime if given else it will run for 100 days.
+        self.finish_time = datetime.now() + kwargs.get("duration", timedelta(hours=int(100 * 24)))
 
     # pylint: disable=broad-except
     async def execute_multipart_workload(self):
@@ -115,11 +115,7 @@ class TestMultiParts(S3Api):
                 if self.part_copy:
                     await self.delete_object(mpart_bucket, s3_object)
                 await self.delete_object(mpart_bucket, s3mpart_object)
-                self.log.info(
-                    "Iteration %s is completed of %s...",
-                    self.iteration,
-                    self.session_id,
-                )
+                self.log.info("Iteration %s is completed of %s...", self.iteration, self.session_id)
             except Exception as err:
                 self.log.exception("bucket url: {%s} \nException: {%s}", self.s3_url, err)
                 assert False, f"bucket url: {self.s3_url} \n Exception: {err}"
@@ -203,3 +199,52 @@ class TestMultiParts(S3Api):
         )
         self.log.info("'s3://%s/%s' uploaded successfully.", mpart_bucket, s3mpart_object)
         return upload_obj_checksum
+
+    # pylint: disable=broad-except
+    async def execute_multipart_negative_workload(self):
+        """Start Multipart operation and abort it and try to read object and expect failure."""
+        number_of_buckets = self.kwargs.get("number_of_buckets", 1)
+        while True:
+            try:
+                self.log.info("Iteration %s is started for %s", self.iteration, self.session_id)
+                for _ in range(number_of_buckets):
+                    mpart_bucket = f"s3mpart-negative-bkt-{self.test_id}-{perf_counter_ns()}"
+                    await self.create_bucket(mpart_bucket)
+                    s3mpart_object = f"s3mpart-abort-obj-{self.test_id}-{perf_counter_ns()}"
+                    self.log.info("Object name: %s", s3mpart_object)
+                    number_of_parts = await self.get_random_number_of_parts()
+                    object_size = await self.get_workload_size()
+                    single_part_size = round(object_size / number_of_parts)
+                    self.log.info("single part size: %s", utility.convert_size(single_part_size))
+                    response = await self.create_multipart_upload(mpart_bucket, s3mpart_object)
+                    mpu_id = response["UploadId"]
+                    for i in range(1, number_of_parts + 1):
+                        await self.upload_part(
+                            os.urandom(round(single_part_size)),
+                            mpart_bucket,
+                            s3mpart_object,
+                            upload_id=mpu_id,
+                            part_number=i,
+                        )
+                    parts = await self.list_parts(mpart_bucket, s3mpart_object, mpu_id)
+                    assert parts, f"Failed to list parts: {parts}"
+                    await self.abort_multipart_upload(mpart_bucket, s3mpart_object, mpu_id)
+                    parts = await self.list_parts(mpart_bucket, s3mpart_object, mpu_id)
+                    assert not parts, f"Able to list parts after abort operations: {parts}"
+                    try:
+                        resp = await self.get_object(bucket=mpart_bucket, key=s3mpart_object)
+                        raise AssertionError(
+                            f"Able to perform GetObject on aborted object {s3mpart_object}, "
+                            f"resp: {resp}"
+                        )
+                    except ClientError as err:
+                        self.log.info("Get Object exception for non existing object %s", err)
+                    await self.delete_object(mpart_bucket, s3mpart_object)
+                    await self.delete_bucket(mpart_bucket, True)
+                self.log.info("Iteration %s is completed of %s", self.iteration, self.session_id)
+            except Exception as err:
+                self.log.exception("bucket url: {%s} \nException: {%s}", self.s3_url, err)
+                assert False, f"bucket url: {self.s3_url} \n Exception: {err}"
+            if (self.finish_time - datetime.now()).total_seconds() < MIN_DURATION:
+                return True, "Object operation negative execution completed successfully."
+            self.iteration += 1
