@@ -216,6 +216,7 @@ class TestMultiParts(S3Api):
                     object_size = await self.get_workload_size()
                     single_part_size = round(object_size / number_of_parts)
                     self.log.info("single part size: %s", utility.convert_size(single_part_size))
+                    s3_url = f"s3://{mpart_bucket}/{s3mpart_object}"
                     response = await self.create_multipart_upload(mpart_bucket, s3mpart_object)
                     mpu_id = response["UploadId"]
                     for i in range(1, number_of_parts + 1):
@@ -226,20 +227,25 @@ class TestMultiParts(S3Api):
                             upload_id=mpu_id,
                             part_number=i,
                         )
-                    parts = await self.list_parts(mpart_bucket, s3mpart_object, mpu_id)
+                    parts = await self.list_parts(mpu_id, mpart_bucket, s3mpart_object)
                     assert parts, f"Failed to list parts: {parts}"
                     await self.abort_multipart_upload(mpart_bucket, s3mpart_object, mpu_id)
-                    parts = await self.list_parts(mpart_bucket, s3mpart_object, mpu_id)
-                    assert not parts, f"Able to list parts after abort operations: {parts}"
+                    try:
+                        resp = await self.list_parts(mpu_id, mpart_bucket, s3mpart_object)
+                        assert False, f"Able to list parts after abort for {s3_url}, resp: {resp}"
+                    except ClientError as err:
+                        assert "NoSuchUpload" in str(err), str(err)
+                        self.log.info("List part failed for %s, after abort %s", s3_url, err)
                     try:
                         resp = await self.get_object(bucket=mpart_bucket, key=s3mpart_object)
-                        raise AssertionError(
-                            f"Able to perform GetObject on aborted object {s3mpart_object}, "
-                            f"resp: {resp}"
-                        )
+                        assert (
+                            False
+                        ), f"Able to perform GetObject on aborted object {s3_url}, resp: {resp}"
                     except ClientError as err:
-                        self.log.info("Get Object exception for non existing object %s", err)
-                    await self.delete_object(mpart_bucket, s3mpart_object)
+                        assert "NoSuchKey" in str(err), str(err)
+                        self.log.info("GetObject exception for non existing object %s", err)
+                    resp = await self.delete_object(mpart_bucket, s3mpart_object)
+                    assert resp["ResponseMetadata"]["HTTPStatusCode"] == 204, resp
                     await self.delete_bucket(mpart_bucket, True)
                 self.log.info("Iteration %s is completed of %s", self.iteration, self.session_id)
             except Exception as err:
