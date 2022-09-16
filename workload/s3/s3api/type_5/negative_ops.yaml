@@ -23,5 +23,9 @@ test_4: #negative scenario
   TEST_ID: TEST-47371
   sessions_per_node: 2
   object_size: 512Mib
+  part_range:
+    start: 10
+    end: 20
   number_of_buckets: 1
+  tool: s3api
   operation: type_5_object_multipart_negative

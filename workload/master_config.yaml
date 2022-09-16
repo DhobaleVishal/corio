@@ -173,6 +173,13 @@ s3api: # basic_io
     min_runtime: 2h
     sessions_per_node: 5
     number_of_buckets: 100
+  type_5_object_multipart_negative:
+    sessions_per_node: 2
+    object_size: 512Mib
+    part_range:
+      start: 10
+      end: 20
+    number_of_buckets: 1
 
 mix_io:
   # TEST_ID: TEST-40042
