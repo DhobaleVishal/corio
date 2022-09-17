@@ -31,7 +31,7 @@ from src.libs.s3api import S3Api
 
 
 class TestS3Object(S3Api):
-    """Class for bucket operations."""
+    """Class for Type2 & Type5 object operations."""
 
     def __init__(
         self,

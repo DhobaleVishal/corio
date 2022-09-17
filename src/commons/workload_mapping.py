@@ -29,8 +29,6 @@ from scripts.s3.s3api import (
     mix_object_crud_operations,
     multipart_operations,
     object_operations,
-    object_operations_negative,
-    object_range_read_negative,
 )
 
 # mapping_dict = {operation_name_from_workload: [script.class, function_name],}
@@ -120,11 +118,11 @@ SCRIPT_MAPPING = {
         "execute_bucket_workload",
     ],
     "type_5_object_negative": [
-        object_operations_negative.TestType5ObjectOpsNegative,
+        object_operations.TestS3Object,
         "execute_object_ops_negative_workload",
     ],
     "type_5_object_range_read_negative": [
-        object_range_read_negative.TestType5ObjectReadNegative,
+        object_operations.TestS3Object,
         "execute_object_read_negative_workload",
     ],
     "type_5_object_multipart_abort_negative": [
