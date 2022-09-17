@@ -23,6 +23,8 @@ import random
 from datetime import timedelta, datetime
 from time import perf_counter_ns
 
+from botocore.exceptions import ClientError
+
 from src.commons.constants import MIN_DURATION
 from src.commons.utils import utility
 from src.libs.s3api import S3Api
@@ -65,7 +67,7 @@ class TestS3Object(S3Api):
         self.session_id = kwargs.get("session")
         self.iteration = 1
         self.range_read = kwargs.get("range_read")
-        self.parts = 3
+        self.kwargs = kwargs
         # Execute workload for given duration if sequential else will run for 100 days.
         self.finish_time = datetime.now() + kwargs.get("duration", timedelta(hours=int(100 * 24)))
 
@@ -98,8 +100,8 @@ class TestS3Object(S3Api):
                 await self.head_object(bucket, file_name)
                 self.log.info("Get Object and check data integrity.")
                 if range_read:
-                    part = int(file_size / self.parts)
-                    # Perform range raed on all section.
+                    # Perform range raed on all three section.
+                    part = int(file_size / 3)
                     part_ranges = [
                         (0, part),
                         (part + 1, part * 2),
@@ -158,3 +160,60 @@ class TestS3Object(S3Api):
         else:
             object_size = self.object_size
         return object_size
+
+    # pylint: disable=broad-except
+    async def execute_object_read_negative_workload(self):
+        """Execute object range read with invalid size workload for specific duration."""
+        bucket_name = f"object-op-{self.test_id}-{perf_counter_ns()}".lower()
+        self.log.info("Create bucket %s", bucket_name)
+        resp = await self.create_bucket(bucket_name)
+        self.log.info("Bucket created %s", resp)
+        await self.upload_n_number_objects(bucket_name)
+        self.log.info("List objects of created %s bucket", bucket_name)
+        while True:
+            try:
+                self.log.info("Iteration %s is started for %s...", self.iteration, self.session_id)
+                resp = await self.list_objects(bucket_name)
+                key_name = random.choice(resp)
+                resp = await self.head_object(bucket_name, key_name)
+                random_range = random.randrange(1, resp["ContentLength"])
+                byte_range = (
+                    f"bytes={resp['ContentLength']-random_range}"
+                    f"-{resp['ContentLength']+random_range}"
+                )
+                self.log.info("Range read for range %s", byte_range)
+                try:
+                    resp = await self.get_object(
+                        bucket=bucket_name, key=key_name, ranges=byte_range
+                    )
+                    assert (
+                        False
+                    ), f"Expected failure in range read for invalid range:{key_name}, resp: {resp}"
+                except ClientError as err:
+                    self.log.info("Get Object range read exception for invalid range %s", err)
+            except Exception as err:
+                self.log.exception("bucket url: {%s}\nException: {%s}", self.s3_url, err)
+                assert False, f"bucket url: {self.s3_url}\nException: {err}"
+            if (self.finish_time - datetime.now()).total_seconds() < MIN_DURATION:
+                await self.delete_bucket(bucket_name, True)
+                return True, "Object operation negative execution completed successfully."
+            self.iteration += 1
+
+    async def upload_n_number_objects(self, bucket_name):
+        """Upload n number of objects."""
+        number_of_objects = self.kwargs.get("number_of_objects", 50)
+        self.log.info("Upload %s number of objects to bucket %s", number_of_objects, bucket_name)
+        for i in range(1, number_of_objects + 1):
+            if isinstance(self.object_size, dict):
+                file_size = random.randrange(self.object_size["start"], self.object_size["end"])
+                # nosec
+            else:
+                file_size = self.object_size
+            file_name = f"object-{i}-{perf_counter_ns()}"
+            self.log.info("Object '%s', object size %s bytes", file_name, file_size)
+            file_path = utility.create_file(file_name, file_size)
+            await self.upload_object(bucket_name, file_name, file_path=file_path)
+            self.log.info("'%s' uploaded successfully.", self.s3_url)
+            self.log.info("Delete generated file")
+            if os.path.exists(file_path):
+                os.remove(file_path)
