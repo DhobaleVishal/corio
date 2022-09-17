@@ -127,7 +127,7 @@ SCRIPT_MAPPING = {
         object_range_read_negative.TestType5ObjectReadNegative,
         "execute_object_read_negative_workload",
     ],
-    "type_5_object_multipart_negative": [
+    "type_5_object_multipart_abort_negative": [
         multipart_operations.TestMultiParts,
         "execute_multipart_negative_workload",
     ],

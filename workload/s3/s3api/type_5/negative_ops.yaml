@@ -28,4 +28,4 @@ test_4: #negative scenario
     end: 20
   number_of_buckets: 1
   tool: s3api
-  operation: type_5_object_multipart_negative
+  operation: type_5_object_multipart_abort_negative
