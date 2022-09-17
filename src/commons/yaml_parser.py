@@ -175,16 +175,15 @@ def test_parser(yaml_file: str, number_of_nodes: int) -> dict:
 
 def convert_min_runtime_to_time_delta(test: str, delta_list: list, data: dict) -> None:
     """Convert min_runtime to time_delta."""
-    if not data.get("min_runtime"):
-        # Added support for min_runtime, if not provided then workload will start right away.
-        data["min_runtime"] = "0"
+    # Note: Added support for min_runtime, if not provided then workload will start right away
+    # and will continue for 100days by default.
     if test.lower() == "test_1" or len(delta_list) == 0:
         data["start_time"] = datetime.timedelta(hours=00, minutes=00, seconds=00)
-        delta_list.append(convert_to_time_delta(data["min_runtime"]))
+        delta_list.append(convert_to_time_delta(data.get("min_runtime", "0")))
     else:
         data["start_time"] = delta_list.pop()
-        delta_list.append(data["start_time"] + convert_to_time_delta(data["min_runtime"]))
-    data["min_runtime"] = convert_to_time_delta(data["min_runtime"])
+        delta_list.append(data["start_time"] + convert_to_time_delta(data.get("min_runtime", "0")))
+    data["min_runtime"] = convert_to_time_delta(data.get("min_runtime", "100d"))
 
 
 def convert_object_part_size_to_bytes(data: dict) -> None:
