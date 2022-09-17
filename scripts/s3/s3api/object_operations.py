@@ -217,3 +217,42 @@ class TestS3Object(S3Api):
             self.log.info("Delete generated file")
             if os.path.exists(file_path):
                 os.remove(file_path)
+
+    async def execute_object_ops_negative_workload(self):
+        """Execute Object Read, Delete, Ranged Read on non-existing object and expect error."""
+        iteration = 1
+        while True:
+            self.log.info("Iteration %s is started for %s...", iteration, self.session_id)
+            bucket = f"object-op-{self.test_id}-{perf_counter_ns()}".lower()
+            self.log.info("Create bucket %s", bucket)
+            resp = await self.create_bucket(bucket)
+            self.log.info("Bucket created %s", resp)
+            object_key = f"object-op-{perf_counter_ns()}"
+            try:
+                resp = await self.get_object(bucket=bucket, key=object_key)
+                assert False, (
+                    f"Expected failure in GetObject API for "
+                    f"non existing object:{object_key}, resp: {resp}"
+                )
+            except ClientError as err:
+                self.log.info("Get Object exception for non existing object %s", err)
+            try:
+                resp = await self.get_object(bucket=bucket, key=object_key, ranges="bytes=0-9")
+                assert False, (
+                    f"Expected failure in GetObject range read for "
+                    f"non existing object:{object_key}, resp: {resp}"
+                )
+            except ClientError as err:
+                self.log.info("Get Object range read exception for non existing object %s", err)
+            try:
+                resp = await self.delete_object(bucket, object_key)
+                assert False, (
+                    f"Expected failure in DeleteObject API for "
+                    f"non existing object:{object_key}, resp: {resp}"
+                )
+            except ClientError as err:
+                self.log.info("Delete Object exception for non existing object %s", err)
+            await self.delete_bucket(bucket, True)
+            if (self.finish_time - datetime.now()).total_seconds() < MIN_DURATION:
+                return True, "Object operation negative execution completed successfully."
+            iteration += 1
