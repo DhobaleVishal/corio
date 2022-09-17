@@ -138,3 +138,18 @@ test_10: # negative scenario
   min_runtime: 10m
   operation: type_5_object_multipart_abort_negative
 
+test_12:
+  TEST_ID: TEST-47369
+  sessions_per_node: 10
+  number_of_buckets: 1
+  operation: type_5_object_negative
+
+test_13: #negative scenario
+  TEST_ID: TEST-47370
+  sessions_per_node: 5
+  object_size:
+    start: 0Kb
+    end: 5Gb
+  number_of_buckets: 1
+  number_of_objects: 500
+  operation: type_5_object_range_read_negative
