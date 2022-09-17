@@ -125,3 +125,16 @@ test_9:
   put_percentage_per_bucket: 10
   tool: s3api
   operation: "type_5_bucket_object_ops"
+
+test_10: # negative scenario
+  TEST_ID: TEST-47371
+  sessions_per_node: 2
+  object_size: 100Mib
+  number_of_buckets: 1
+  part_range:
+    start: 10
+    end: 20
+  tool: s3api
+  min_runtime: 10m
+  operation: type_5_object_multipart_abort_negative
+
